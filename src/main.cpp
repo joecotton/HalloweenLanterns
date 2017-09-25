@@ -40,9 +40,9 @@ char blynk_token[34] = "BLYNK_TOKEN";
 
 bool shouldSaveConfig = false; //flag for saving data
 
-#include <BlynkSimpleEsp8266.h>
-#include <SimpleTimer.h>
-SimpleTimer timer;
+#include <BlynkSimpleEsp8266_SSL.h>
+// #include <SimpleTimer.h>
+BlynkTimer timer;
 
 const char hostOTA[] = "HalloweenLantern";
 const char passOTA[] = "striper";
