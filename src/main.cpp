@@ -21,7 +21,7 @@
                                     // 28 gives 4 row on TP tube, at 8 LEDs per row.
 #define NUM_COLUMNS 8
 #define NUM_ROWS (NUM_LEDS_PER_LANTERN/NUM_COLUMNS)
-#define FRAMES_PER_SECOND 60        // LED update frequency
+#define FRAMES_PER_SECOND 30        // LED update frequency
 
 // For led chips like Neopixels, which have a data line, ground, and power, you just
 // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
