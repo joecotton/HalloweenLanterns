@@ -129,6 +129,8 @@ void enableDotmove();
 void disableBlankDisplay();
 void enableBlankDisplay();
 
+void modeSelect(uint8_t mode);
+
 void reconnectWifi();
 void onDisconnected(const WiFiEventStationModeDisconnected& event);
 uint8_t bl_connecting = 0;
@@ -149,16 +151,6 @@ uint8_t blankTimer = slideTimer.setInterval(1000UL, blankDisplay);
 // Utility
 uint8_t watchDogTimer = slideTimer.setInterval(500UL, watchdogPrint);
 uint8_t entropyTimer = slideTimer.setInterval(5000UL, winkEntropy);
-
-slideTimer.disable(winkTimer);
-slideTimer.disable(winkSelectTimer);
-slideTimer.disable(winkDrawTimer);
-slideTimer.disable(winkFlameTimer);
-
-slideTimer.disable(dotSpeedTimer);
-slideTimer.disable(fadeSpeedTimer);
-
-slideTimer.disable(blankTimer);
 
 void tick() {
   //toggle state
@@ -332,6 +324,16 @@ void setup() {
   // Initialize flame colors
   inciteFlame();
 
+  slideTimer.disable(winkTimer);
+  slideTimer.disable(winkSelectTimer);
+  slideTimer.disable(winkDrawTimer);
+  slideTimer.disable(winkFlameTimer);
+
+  slideTimer.disable(dotSpeedTimer);
+  slideTimer.disable(fadeSpeedTimer);
+
+  slideTimer.disable(blankTimer);
+
   // Start drawing LEDs
   slideTimer.setInterval(1000/FRAMES_PER_SECOND, updateLEDs);
 
@@ -348,7 +350,6 @@ void setup() {
       slideTimer.enable(blankTimer);
       break;
   }
-
 }
 
 void disableFlame() {
@@ -569,43 +570,35 @@ void loop() {
   }
 
   if (newDisplayMode!=displayMode) {
-    switch (displayMode) {
-      case 0:
-        disableFlame();
-        // slideTimer.deleteTimer(dotSpeedTimer);
-        // dotSpeedTimer = slideTimer.setInterval(dotSpeed, winkLanterns);
-        break;
-      case 1:
-        disableDotmove();
-        // slideTimer.deleteTimer(dotSpeedTimer);
-        // dotSpeedTimer = slideTimer.setInterval(dotSpeed, dotmove);
-        break;
-      case 2:
-        disableBlankDisplay();
-        // slideTimer.deleteTimer(dotSpeedTimer);
-        // dotSpeedTimer = slideTimer.setInterval(dotSpeed, blankDisplay);
-        break;
-    }
-    switch (newDisplayMode) {
-      case 0:
-        enableFlame();
-        // slideTimer.deleteTimer(dotSpeedTimer);
-        // dotSpeedTimer = slideTimer.setInterval(dotSpeed, winkLanterns);
-        break;
-      case 1:
-        enableDotmove();
-        // slideTimer.deleteTimer(dotSpeedTimer);
-        // dotSpeedTimer = slideTimer.setInterval(dotSpeed, dotmove);
-        break;
-      case 2:
-        enableBlankDisplay();
-        // slideTimer.deleteTimer(dotSpeedTimer);
-        // dotSpeedTimer = slideTimer.setInterval(dotSpeed, blankDisplay);
-        break;
-    }
+    modeSelect(newDisplayMode);
     displayMode = newDisplayMode;
   }
+}
 
+void modeSelect(uint8_t mode) {
+  switch (displayMode) {
+    case 0:
+      disableFlame();
+      break;
+    case 1:
+      disableDotmove();
+      break;
+    case 2:
+      disableBlankDisplay();
+      break;
+  }
+
+  switch (mode) {
+    case 0:
+      enableFlame();
+      break;
+    case 1:
+      enableDotmove();
+      break;
+    case 2:
+      enableBlankDisplay();
+      break;
+  }
 }
 
 void bl_reconnect() {
