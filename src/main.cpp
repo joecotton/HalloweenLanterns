@@ -89,7 +89,7 @@ uint8_t brightness = BRIGHTNESS;
 uint8_t ledSkipStep = WINK_SKIP;
 uint8_t fireColorLow = 130;
 uint8_t fireColorHigh = 155;
-uint8_t winkSpeed = 1;
+uint8_t winkSpeed = 4;
 uint8_t winkOutChance = 30;
 uint8_t winkInChance = 5;
 uint8_t inciteFlameDelay = 80;
@@ -109,9 +109,9 @@ CRGBPalette16 firePalette = HeatColors_p;
 
 void slide1();
 void slide2();
-void dotmove();
 void updateLEDs();
 void fadeLEDs();
+void dotmove();
 uint16_t lanternPos(uint8_t lantern_num, uint16_t pos_on_lantern);
 
 void winkLanterns();
@@ -129,7 +129,8 @@ void enableDotmove();
 void disableBlankDisplay();
 void enableBlankDisplay();
 
-void modeSelect(uint8_t mode);
+// void modeSelect(uint8_t mode);
+void modeSelect(uint8_t newMode, uint8_t &oldMode);
 
 void reconnectWifi();
 void onDisconnected(const WiFiEventStationModeDisconnected& event);
@@ -137,10 +138,11 @@ uint8_t bl_connecting = 0;
 void bl_reconnect();
 
 // Flames
-uint8_t winkTimer = slideTimer.setInterval(dotSpeed, winkLanterns);
+uint8_t winkTimer = slideTimer.setInterval(winkSpeed, winkLanterns);
 uint8_t winkSelectTimer = slideTimer.setInterval(200UL, winkSelect);
 uint8_t winkDrawTimer = slideTimer.setInterval(50UL, drawWinkingLanterns);
 uint8_t winkFlameTimer = slideTimer.setInterval(inciteFlameDelay, inciteFlame);
+
 // Fading Dots
 uint8_t dotSpeedTimer = slideTimer.setInterval(dotSpeed, dotmove);
 uint8_t fadeSpeedTimer = slideTimer.setInterval(fadeSpeed, fadeLEDs);
@@ -334,58 +336,119 @@ void setup() {
 
   slideTimer.disable(blankTimer);
 
+  slideTimer.disable(watchDogTimer);
+
+  Serial.print("winkTimer: ");
+  Serial.println(winkTimer);
+
+  Serial.print("winkSelectTimer: ");
+  Serial.println(winkSelectTimer);
+
+  Serial.print("winkDrawTimer: ");
+  Serial.println(winkDrawTimer);
+
+  Serial.print("winkFlameTimer: ");
+  Serial.println(winkFlameTimer);
+
+  Serial.print("dotSpeedTimer: ");
+  Serial.println(dotSpeedTimer);
+
+  Serial.print("fadeSpeedTimer: ");
+  Serial.println(fadeSpeedTimer);
+
+  Serial.print("blankTimer: ");
+  Serial.println(blankTimer);
+
+  Serial.print("watchDogTimer: ");
+  Serial.println(watchDogTimer);
+
   // Start drawing LEDs
   slideTimer.setInterval(1000/FRAMES_PER_SECOND, updateLEDs);
 
   setSyncInterval(10*60); // Sync interval in seconds (10 minutes)
 
-  switch (displayMode) {
-    case 0:
-      slideTimer.enable(winkDrawTimer);
-      break;
-    case 1:
-      slideTimer.enable(dotSpeedTimer);
-      break;
-    case 2:
-      slideTimer.enable(blankTimer);
-      break;
-  }
+  modeSelect(displayMode, displayMode);
+  // switch (displayMode) {
+  //   case 0:
+  //     slideTimer.enable(winkDrawTimer);
+  //     disableDotmove();
+  //     disableBlank();
+  //     enableFlame();
+  //     break;
+  //   case 1:
+  //     slideTimer.enable(dotSpeedTimer);
+  //     break;
+  //   case 2:
+  //     slideTimer.enable(blankTimer);
+  //     break;
+  // }
 }
 
 void disableFlame() {
+  Serial.println("disableFlame()");
+  FastLED.clear();
   slideTimer.disable(winkTimer);
   slideTimer.disable(winkSelectTimer);
   slideTimer.disable(winkDrawTimer);
   slideTimer.disable(winkFlameTimer);
+  Serial.print("Disabled Timers: ");
+  Serial.print(winkTimer);
+  Serial.print(winkSelectTimer);
+  Serial.print(winkDrawTimer);
+  Serial.print(winkFlameTimer);
+  Serial.println();
 }
 
-
 void enableFlame() {
+  Serial.println("enableFlame()");
+  FastLED.clear();
   slideTimer.enable(winkTimer);
   slideTimer.enable(winkSelectTimer);
   slideTimer.enable(winkDrawTimer);
   slideTimer.enable(winkFlameTimer);
+  Serial.print("Enabled Timers: ");
+  Serial.print(winkTimer);
+  Serial.print(winkSelectTimer);
+  Serial.print(winkDrawTimer);
+  Serial.print(winkFlameTimer);
+  Serial.println();
 }
 
 
 void disableDotmove() {
+  Serial.println("disableDotmove()");
+  FastLED.clear();
   slideTimer.disable(dotSpeedTimer);
   slideTimer.disable(fadeSpeedTimer);
+  Serial.print("Disabled Timers: ");
+  Serial.print(dotSpeedTimer);
+  Serial.print(fadeSpeedTimer);
+  Serial.println();
 }
 
 
 void enableDotmove() {
+  Serial.println("enableDotmove()");
+  FastLED.clear();
   slideTimer.enable(dotSpeedTimer);
   slideTimer.enable(fadeSpeedTimer);
+  Serial.print("Enabled Timers: ");
+  Serial.print(dotSpeedTimer);
+  Serial.print(fadeSpeedTimer);
+  Serial.println();
 }
 
 
 void disableBlankDisplay() {
+  Serial.println("disableBlankDisplay()");
+  FastLED.clear();
   slideTimer.disable(blankTimer);
 }
 
 
 void enableBlankDisplay() {
+  Serial.println("enableBlankDisplay()");
+  FastLED.clear();
   slideTimer.enable(blankTimer);
 }
 
@@ -395,6 +458,7 @@ void blankDisplay() {
 }
 
 void winkSelect() {
+  // Serial.println("winkSelect()");
   // Decide if a lantern needs to be winked
   for (int i=0; i<NUM_LANTERNS; i++) {
     switch (winks[i][1]) {
@@ -421,6 +485,7 @@ void winkSelect() {
 }
 
 void winkLanterns() {
+  // Serial.println("winkLanterns()");
   // All lanterns on full, no movement in normal case
   // Randomly, one lantern is put into wink mode, where it slowly fades out
   // to black, and then back in to full light.
@@ -451,6 +516,7 @@ void winkLanterns() {
 }
 
 void inciteFlame() {
+  // Serial.println("inciteFlame()");
   for (int i=0; i<NUM_LANTERNS; i++) {
     // winkColor[i] = CRGB::Green;
     winkColor[i] = ColorFromPalette(firePalette, random8(fireColorLow,fireColorHigh));
@@ -479,6 +545,7 @@ void drawWinkingLanterns() {
 }
 
 void dotmove() {
+  // Serial.print("+");
   static uint16_t pos;
   static int8_t dir;
 
@@ -508,6 +575,7 @@ uint16_t lanternPos(uint8_t lantern_num, uint16_t pos_on_lantern) {
 }
 
 void fadeLEDs() {
+  // Serial.println("fadeLEDs()");
   for (int i=0; i<NUM_LANTERNS; i++) {
     leds((START_LEDS+(NUM_LEDS_PER_LANTERN*i)),  (START_LEDS+( (NUM_LEDS_PER_LANTERN) * (i+1) )) - 1 ).fadeToBlackBy(fadeAmount);
   }
@@ -537,15 +605,18 @@ void loop() {
 
   if (Blynk.connected()) {
     bl_connecting = 0;
-    leds[1] = CRGB(0, 128, 0); // Green
+    // leds[1] = CRGB(0, 128, 0); // Green
+    // leds[1].fadeToBlackBy(200);
     // FastLED.show();
     Blynk.run(); // Initiates Blynk
   } else {
     if (!bl_connecting) {
-      leds[1] = CRGB::Orange;
+      // leds[1] = CRGB::Orange;
+      // leds[1].fadeToBlackBy(200);
       slideTimer.setTimeout(5000UL, bl_reconnect);
     } else {
-      leds[1] = CRGB::Red;
+      // leds[1] = CRGB::Red;
+      // leds[1].fadeToBlackBy(200);
     }
   }
   // timer.run(); // Initiates SimpleTimer
@@ -570,25 +641,29 @@ void loop() {
   }
 
   if (newDisplayMode!=displayMode) {
-    modeSelect(newDisplayMode);
-    displayMode = newDisplayMode;
+    modeSelect(newDisplayMode, displayMode);
+    // displayMode = newDisplayMode;
   }
 }
 
-void modeSelect(uint8_t mode) {
-  switch (displayMode) {
-    case 0:
-      disableFlame();
-      break;
-    case 1:
-      disableDotmove();
-      break;
-    case 2:
-      disableBlankDisplay();
-      break;
-  }
+void modeSelect(uint8_t newMode, uint8_t &oldMode) {
+  // switch (oldMode) {
+  //   case 0:
+  //     disableFlame();
+  //     break;
+  //   case 1:
+  //     disableDotmove();
+  //     break;
+  //   case 2:
+  //     disableBlankDisplay();
+  //     break;
+  // }
 
-  switch (mode) {
+  disableFlame();
+  disableDotmove();
+  disableBlankDisplay();
+
+  switch (newMode) {
     case 0:
       enableFlame();
       break;
@@ -599,13 +674,16 @@ void modeSelect(uint8_t mode) {
       enableBlankDisplay();
       break;
   }
+  oldMode = newMode;
 }
 
 void bl_reconnect() {
   bl_connecting = 1;
-  leds[1] = CRGB::Purple;
+  // leds[1] = CRGB::Blue;
+  // leds[1].fadeToBlackBy(200);
   if (Blynk.connect(5)) {
-    leds[1] = CRGB::Blue;
+    // leds[1] = CRGB::Purple;
+    // leds[1].fadeToBlackBy(200);
   }
   // return Blynk.connected();
 }
@@ -626,7 +704,7 @@ BLYNK_WRITE(V2) {
   dotSpeed = param.asInt();
   // slideTimer.deleteTimer(dotSpeedTimer);
   // dotSpeedTimer = slideTimer.setInterval(dotSpeed, dotmove);
-  dotSpeedTimer = slideTimer.changeInterval(dotSpeedTimer, dotSpeed);
+  slideTimer.changeInterval(dotSpeedTimer, dotSpeed);
   Serial.println("Dot Speed Updated");
 }
 BLYNK_READ(V2) {
@@ -638,6 +716,7 @@ BLYNK_WRITE(V3) {
   // slideTimer.deleteTimer(fadeSpeedTimer);
   if (fadeSpeed>0) {
     // fadeSpeedTimer = slideTimer.setInterval(fadeSpeed, fadeLEDs);
+    slideTimer.changeInterval(fadeSpeedTimer, fadeSpeed);
   }
   Serial.println("Fade Speed Updated");
 }
@@ -691,7 +770,7 @@ BLYNK_READ(V8) {
 }
 
 BLYNK_WRITE(V9) {
-  // Set Wink Speed
+  // Set Wink Speed (amount to fade with each tick);
   winkFadeAmount = param.asInt();
   Serial.println("Wink Speed Updated");
 }
