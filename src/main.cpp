@@ -336,31 +336,31 @@ void setup() {
 
   slideTimer.disable(blankTimer);
 
-  slideTimer.disable(watchDogTimer);
+  // slideTimer.disable(watchDogTimer);
 
-  Serial.print("winkTimer: ");
-  Serial.println(winkTimer);
-
-  Serial.print("winkSelectTimer: ");
-  Serial.println(winkSelectTimer);
-
-  Serial.print("winkDrawTimer: ");
-  Serial.println(winkDrawTimer);
-
-  Serial.print("winkFlameTimer: ");
-  Serial.println(winkFlameTimer);
-
-  Serial.print("dotSpeedTimer: ");
-  Serial.println(dotSpeedTimer);
-
-  Serial.print("fadeSpeedTimer: ");
-  Serial.println(fadeSpeedTimer);
-
-  Serial.print("blankTimer: ");
-  Serial.println(blankTimer);
-
-  Serial.print("watchDogTimer: ");
-  Serial.println(watchDogTimer);
+  // Serial.print("winkTimer: ");
+  // Serial.println(winkTimer);
+  //
+  // Serial.print("winkSelectTimer: ");
+  // Serial.println(winkSelectTimer);
+  //
+  // Serial.print("winkDrawTimer: ");
+  // Serial.println(winkDrawTimer);
+  //
+  // Serial.print("winkFlameTimer: ");
+  // Serial.println(winkFlameTimer);
+  //
+  // Serial.print("dotSpeedTimer: ");
+  // Serial.println(dotSpeedTimer);
+  //
+  // Serial.print("fadeSpeedTimer: ");
+  // Serial.println(fadeSpeedTimer);
+  //
+  // Serial.print("blankTimer: ");
+  // Serial.println(blankTimer);
+  //
+  // Serial.print("watchDogTimer: ");
+  // Serial.println(watchDogTimer);
 
   // Start drawing LEDs
   slideTimer.setInterval(1000/FRAMES_PER_SECOND, updateLEDs);
@@ -368,30 +368,16 @@ void setup() {
   setSyncInterval(10*60); // Sync interval in seconds (10 minutes)
 
   modeSelect(displayMode, displayMode);
-  // switch (displayMode) {
-  //   case 0:
-  //     slideTimer.enable(winkDrawTimer);
-  //     disableDotmove();
-  //     disableBlank();
-  //     enableFlame();
-  //     break;
-  //   case 1:
-  //     slideTimer.enable(dotSpeedTimer);
-  //     break;
-  //   case 2:
-  //     slideTimer.enable(blankTimer);
-  //     break;
-  // }
 }
 
 void disableFlame() {
-  Serial.println("disableFlame()");
+  // Serial.println("disableFlame()");
   FastLED.clear();
   slideTimer.disable(winkTimer);
   slideTimer.disable(winkSelectTimer);
   slideTimer.disable(winkDrawTimer);
   slideTimer.disable(winkFlameTimer);
-  Serial.print("Disabled Timers: ");
+  // Serial.print("Disabled Timers: ");
   Serial.print(winkTimer);
   Serial.print(winkSelectTimer);
   Serial.print(winkDrawTimer);
@@ -400,13 +386,13 @@ void disableFlame() {
 }
 
 void enableFlame() {
-  Serial.println("enableFlame()");
+  // Serial.println("enableFlame()");
   FastLED.clear();
   slideTimer.enable(winkTimer);
   slideTimer.enable(winkSelectTimer);
   slideTimer.enable(winkDrawTimer);
   slideTimer.enable(winkFlameTimer);
-  Serial.print("Enabled Timers: ");
+  // Serial.print("Enabled Timers: ");
   Serial.print(winkTimer);
   Serial.print(winkSelectTimer);
   Serial.print(winkDrawTimer);
@@ -416,11 +402,11 @@ void enableFlame() {
 
 
 void disableDotmove() {
-  Serial.println("disableDotmove()");
+  // Serial.println("disableDotmove()");
   FastLED.clear();
   slideTimer.disable(dotSpeedTimer);
   slideTimer.disable(fadeSpeedTimer);
-  Serial.print("Disabled Timers: ");
+  // Serial.print("Disabled Timers: ");
   Serial.print(dotSpeedTimer);
   Serial.print(fadeSpeedTimer);
   Serial.println();
@@ -428,11 +414,11 @@ void disableDotmove() {
 
 
 void enableDotmove() {
-  Serial.println("enableDotmove()");
+  // Serial.println("enableDotmove()");
   FastLED.clear();
   slideTimer.enable(dotSpeedTimer);
   slideTimer.enable(fadeSpeedTimer);
-  Serial.print("Enabled Timers: ");
+  // Serial.print("Enabled Timers: ");
   Serial.print(dotSpeedTimer);
   Serial.print(fadeSpeedTimer);
   Serial.println();
@@ -440,14 +426,14 @@ void enableDotmove() {
 
 
 void disableBlankDisplay() {
-  Serial.println("disableBlankDisplay()");
+  // Serial.println("disableBlankDisplay()");
   FastLED.clear();
   slideTimer.disable(blankTimer);
 }
 
 
 void enableBlankDisplay() {
-  Serial.println("enableBlankDisplay()");
+  // Serial.println("enableBlankDisplay()");
   FastLED.clear();
   slideTimer.enable(blankTimer);
 }
@@ -647,21 +633,21 @@ void loop() {
 }
 
 void modeSelect(uint8_t newMode, uint8_t &oldMode) {
-  // switch (oldMode) {
-  //   case 0:
-  //     disableFlame();
-  //     break;
-  //   case 1:
-  //     disableDotmove();
-  //     break;
-  //   case 2:
-  //     disableBlankDisplay();
-  //     break;
-  // }
+  switch (oldMode) {
+    case 0:
+      disableFlame();
+      break;
+    case 1:
+      disableDotmove();
+      break;
+    case 2:
+      disableBlankDisplay();
+      break;
+  }
 
-  disableFlame();
-  disableDotmove();
-  disableBlankDisplay();
+  // disableFlame();
+  // disableDotmove();
+  // disableBlankDisplay();
 
   switch (newMode) {
     case 0:
