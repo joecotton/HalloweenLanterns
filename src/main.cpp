@@ -1,5 +1,5 @@
 #include <FS.h>                   //this needs to be first, or it all crashes and burns...
-#define BLYNK_DEBUG           // Comment this out to disable debug and save space
+// #define BLYNK_DEBUG           // Comment this out to disable debug and save space
 #define BLYNK_PRINT Serial    // Comment this out to disable prints and save space
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
@@ -10,18 +10,23 @@
 #include <ESP8266WebServer.h>
 #include <ESP8266HTTPUpdateServer.h>
 #include <ArduinoOTA.h>
+
+#define FASTLED_ALLOW_INTERRUPTS 0
 #include <FastLED.h>
 
 // How many leds in your strip?
 #define BRIGHTNESS  64              // Default brightness.
-#define LED_TYPE    WS2812
+#define LED_TYPE    WS2812B
 #define COLOR_ORDER GRB
 #define NUM_LANTERNS 4              // Number of Individual Lanterns
 #define NUM_LEDS_PER_LANTERN 32     // Number of LEDs per Lantern
                                     // 28 gives 4 row on TP tube, at 8 LEDs per row.
+#define START_LEDS 2                // How many LEDs to NOT count from the start
 #define NUM_COLUMNS 8
 #define NUM_ROWS (NUM_LEDS_PER_LANTERN/NUM_COLUMNS)
 #define FRAMES_PER_SECOND 30        // LED update frequency
+#define WINK_SKIP 5                 // How many LEDs to skip to reduce overall brightness
+                                    // While retaining sufficient brightness levels for smooth transition
 
 // For led chips like Neopixels, which have a data line, ground, and power, you just
 // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
@@ -40,15 +45,19 @@ char blynk_token[34] = "BLYNK_TOKEN";
 
 bool shouldSaveConfig = false; //flag for saving data
 
-#include <BlynkSimpleEsp8266_SSL.h>
-// #include <SimpleTimer.h>
-BlynkTimer timer;
+// #include <BlynkSimpleEsp8266_SSL.h>
+#include <BlynkSimpleEsp8266.h>
+#include <WidgetRTC.h>
+
+BlynkTimer slideTimer;
+WidgetRTC rtc;
 
 const char hostOTA[] = "HalloweenLantern";
 const char passOTA[] = "striper";
 
 // const char blynkServer[] = "home.lightningflash.net";
 const char blynkServer[] = "blynk.dyn-cms.org";
+// const char blynkServer[] = "192.168.1.10";
 // #define BLYNK_CUSTOM_FINGERPRINT "14:D6:6C:28:9B:A2:A1:6D:08:70:75:01:8A:02:D1:1A:C2:14:F3:CB" // ensure no invisible characters in the fingerprint
 // #define BLYNK_CUSTOM_FINGERPRINT "BC:70:D1:AA:B7:5B:F3:8C:62:EB:A6:90:A0:4A:31:18:19:7C:6A:B8:44:F1:7C:9C:ED:C3:E2:DB:64:B2:49:F9" // SHA256
 #define BLYNK_CUSTOM_FINGERPRINT "FA:0C:A4:C7:D0:EC:9B:CD:FF:15:42:DB:FD:28:67:15:50:95:7A:E5" // SHA1
@@ -62,30 +71,90 @@ ESP8266HTTPUpdateServer httpUpdater;
 // Define the array of leds
 // CRGB leds[NUM_LEDS];
 // CRGBArray<NUM_LEDS> leds;
-CRGBArray<NUM_LEDS_PER_LANTERN*NUM_LANTERNS> leds;
+CRGBArray<(NUM_LEDS_PER_LANTERN*NUM_LANTERNS)+START_LEDS> leds;
 // CRGBSet* leds[NUM_LANTERNS];
 CRGB lColor = CRGB::Red;
-uint16_t dotSpeed = 35;
-uint8_t fadeSpeed = 5;
-uint8_t fadeAmount = 10;
+CRGB winkColor[NUM_LANTERNS];
+
+uint8_t displayMode = 0;    // 0 = Candles/Flame
+                            // 1 = Solid, Selectable Color
+                            // 2 = Black (off)
+uint8_t newDisplayMode = 0;
+
+uint16_t dotSpeed = 4;
+uint8_t fadeSpeed = 0;
+uint8_t fadeAmount = 1;
+uint8_t winkFadeAmount = 1;
 uint8_t brightness = BRIGHTNESS;
+uint8_t ledSkipStep = WINK_SKIP;
+uint8_t fireColorLow = 130;
+uint8_t fireColorHigh = 155;
+uint8_t winkSpeed = 4;
+uint8_t winkOutChance = 30;
+uint8_t winkInChance = 5;
+uint8_t inciteFlameDelay = 80;
+
+uint8_t disconnected = 1;
 
 uint8_t hue = 0;
 
-SimpleTimer slideTimer;
+uint8_t winks[NUM_LANTERNS][2]; // [0] Lantern current dimmness (255=black, 0=full)
+                                // [1]=0 => Stable Light
+                                // [1]=1 => Winking Out
+                                // [1]=2 => Stable Dark
+                                // [1]=3 => Winking In
+
+
+CRGBPalette16 firePalette = HeatColors_p;
 
 void slide1();
 void slide2();
-void dotmove();
 void updateLEDs();
 void fadeLEDs();
+void dotmove();
 uint16_t lanternPos(uint8_t lantern_num, uint16_t pos_on_lantern);
 
+void winkLanterns();
+void winkSelect();
+void watchdogPrint();
+void winkEntropy();
+void drawWinkingLanterns();
+void inciteFlame();
+void blankDisplay();
+
+void disableFlame();
+void enableFlame();
+void disableDotmove();
+void enableDotmove();
+void disableBlankDisplay();
+void enableBlankDisplay();
+
+// void modeSelect(uint8_t mode);
+void modeSelect(uint8_t newMode, uint8_t &oldMode);
+
+void reconnectWifi();
+void onDisconnected(const WiFiEventStationModeDisconnected& event);
+uint8_t bl_connecting = 0;
+void bl_reconnect();
+
+// Flames
+uint8_t winkTimer = slideTimer.setInterval(winkSpeed, winkLanterns);
+uint8_t winkSelectTimer = slideTimer.setInterval(200UL, winkSelect);
+uint8_t winkDrawTimer = slideTimer.setInterval(50UL, drawWinkingLanterns);
+uint8_t winkFlameTimer = slideTimer.setInterval(inciteFlameDelay, inciteFlame);
+
+// Fading Dots
 uint8_t dotSpeedTimer = slideTimer.setInterval(dotSpeed, dotmove);
 uint8_t fadeSpeedTimer = slideTimer.setInterval(fadeSpeed, fadeLEDs);
 
-void tick()
-{
+// Blank
+uint8_t blankTimer = slideTimer.setInterval(1000UL, blankDisplay);
+
+// Utility
+uint8_t watchDogTimer = slideTimer.setInterval(500UL, watchdogPrint);
+uint8_t entropyTimer = slideTimer.setInterval(5000UL, winkEntropy);
+
+void tick() {
   //toggle state
   int state = digitalRead(BUILTIN_LED);  // get the current state of GPIO1 pin
   digitalWrite(BUILTIN_LED, !state);     // set pin to the opposite state
@@ -97,8 +166,7 @@ void saveConfigCallback () {  //callback notifying us of the need to save config
   ticker.attach(0.2, tick);  // led toggle faster
 }
 
-void setup()
-{
+void setup() {
 
   Serial.begin(115200);
   Serial.println();
@@ -173,7 +241,7 @@ void setup()
 
   //fetches ssid and pass and tries to connect, if it does not connect it starts an access point with the specified name
   //and goes into a blocking loop awaiting configuration
-  if (!wifiManager.autoConnect("HalloweenLanternController", "4111 Meadowwood")) {
+  if (!wifiManager.autoConnect("HalloweenLanternController", "booberry3833")) {
     Serial.println("Failed to connect and hit timeout");
     delay(3000);
     //reset and try again, or maybe put it to deep sleep
@@ -203,6 +271,8 @@ void setup()
     configFile.close();
     //end save
   }
+
+  WiFi.setAutoReconnect( true );
 
   Serial.println("local ip");
   Serial.println(WiFi.localIP());
@@ -246,57 +316,246 @@ void setup()
   //END OTA Setup
 
 
-  Blynk.config(blynk_token, blynkServer, 8441, BLYNK_CUSTOM_FINGERPRINT);
-  // Blynk.config(blynk_token, blynkServer);
+  // Blynk.config(blynk_token, blynkServer, 8441, BLYNK_CUSTOM_FINGERPRINT);
+  Blynk.config(blynk_token, blynkServer);
   Blynk.connect();
 
-  // LEDS.addLeds<WS2812,DATA_PIN,RGB>(leds,NUM_LEDS);
-  // LEDS.setBrightness(84);
-
-  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, NUM_LEDS_PER_LANTERN*NUM_LANTERNS).setCorrection( TypicalLEDStrip );
+  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, ((NUM_LEDS_PER_LANTERN*NUM_LANTERNS)+START_LEDS)).setCorrection( TypicalLEDStrip );
   FastLED.setBrightness(  BRIGHTNESS );
 
-  // slideTimer.setInterval(dotSpeed, dotmove);
-  slideTimer.setInterval(FRAMES_PER_SECOND/1000, updateLEDs);
+  // Initialize flame colors
+  inciteFlame();
 
+  slideTimer.disable(winkTimer);
+  slideTimer.disable(winkSelectTimer);
+  slideTimer.disable(winkDrawTimer);
+  slideTimer.disable(winkFlameTimer);
+
+  slideTimer.disable(dotSpeedTimer);
+  slideTimer.disable(fadeSpeedTimer);
+
+  slideTimer.disable(blankTimer);
+
+  slideTimer.disable(watchDogTimer);
+
+  Serial.print("winkTimer: ");
+  Serial.println(winkTimer);
+
+  Serial.print("winkSelectTimer: ");
+  Serial.println(winkSelectTimer);
+
+  Serial.print("winkDrawTimer: ");
+  Serial.println(winkDrawTimer);
+
+  Serial.print("winkFlameTimer: ");
+  Serial.println(winkFlameTimer);
+
+  Serial.print("dotSpeedTimer: ");
+  Serial.println(dotSpeedTimer);
+
+  Serial.print("fadeSpeedTimer: ");
+  Serial.println(fadeSpeedTimer);
+
+  Serial.print("blankTimer: ");
+  Serial.println(blankTimer);
+
+  Serial.print("watchDogTimer: ");
+  Serial.println(watchDogTimer);
+
+  // Start drawing LEDs
+  slideTimer.setInterval(1000/FRAMES_PER_SECOND, updateLEDs);
+
+  setSyncInterval(10*60); // Sync interval in seconds (10 minutes)
+
+  modeSelect(displayMode, displayMode);
+  // switch (displayMode) {
+  //   case 0:
+  //     slideTimer.enable(winkDrawTimer);
+  //     disableDotmove();
+  //     disableBlank();
+  //     enableFlame();
+  //     break;
+  //   case 1:
+  //     slideTimer.enable(dotSpeedTimer);
+  //     break;
+  //   case 2:
+  //     slideTimer.enable(blankTimer);
+  //     break;
+  // }
+}
+
+void disableFlame() {
+  Serial.println("disableFlame()");
+  FastLED.clear();
+  slideTimer.disable(winkTimer);
+  slideTimer.disable(winkSelectTimer);
+  slideTimer.disable(winkDrawTimer);
+  slideTimer.disable(winkFlameTimer);
+  Serial.print("Disabled Timers: ");
+  Serial.print(winkTimer);
+  Serial.print(winkSelectTimer);
+  Serial.print(winkDrawTimer);
+  Serial.print(winkFlameTimer);
+  Serial.println();
+}
+
+void enableFlame() {
+  Serial.println("enableFlame()");
+  FastLED.clear();
+  slideTimer.enable(winkTimer);
+  slideTimer.enable(winkSelectTimer);
+  slideTimer.enable(winkDrawTimer);
+  slideTimer.enable(winkFlameTimer);
+  Serial.print("Enabled Timers: ");
+  Serial.print(winkTimer);
+  Serial.print(winkSelectTimer);
+  Serial.print(winkDrawTimer);
+  Serial.print(winkFlameTimer);
+  Serial.println();
+}
+
+
+void disableDotmove() {
+  Serial.println("disableDotmove()");
+  FastLED.clear();
+  slideTimer.disable(dotSpeedTimer);
+  slideTimer.disable(fadeSpeedTimer);
+  Serial.print("Disabled Timers: ");
+  Serial.print(dotSpeedTimer);
+  Serial.print(fadeSpeedTimer);
+  Serial.println();
+}
+
+
+void enableDotmove() {
+  Serial.println("enableDotmove()");
+  FastLED.clear();
+  slideTimer.enable(dotSpeedTimer);
+  slideTimer.enable(fadeSpeedTimer);
+  Serial.print("Enabled Timers: ");
+  Serial.print(dotSpeedTimer);
+  Serial.print(fadeSpeedTimer);
+  Serial.println();
+}
+
+
+void disableBlankDisplay() {
+  Serial.println("disableBlankDisplay()");
+  FastLED.clear();
+  slideTimer.disable(blankTimer);
+}
+
+
+void enableBlankDisplay() {
+  Serial.println("enableBlankDisplay()");
+  FastLED.clear();
+  slideTimer.enable(blankTimer);
+}
+
+
+void blankDisplay() {
+  FastLED.clear();
+}
+
+void winkSelect() {
+  // Serial.println("winkSelect()");
+  // Decide if a lantern needs to be winked
+  for (int i=0; i<NUM_LANTERNS; i++) {
+    switch (winks[i][1]) {
+      case 0:
+        if (random8(NUM_LANTERNS*winkOutChance)==0) {
+          winks[i][1] = ( ( winks[i][1]+1) % 4);
+          Serial.print("Winking out started on ");
+          Serial.println(i);
+        }
+        break;
+      case 2:
+        if (random8(NUM_LANTERNS*winkInChance)==0) {
+          winks[i][1] = ( ( winks[i][1]+1) % 4);
+          Serial.print("Winking back in started on ");
+          Serial.println(i);
+        }
+        break;
+      case 1:
+      case 3:
+        // Do nothing
+        break;
+    }
+  }
+}
+
+void winkLanterns() {
+  // Serial.println("winkLanterns()");
+  // All lanterns on full, no movement in normal case
+  // Randomly, one lantern is put into wink mode, where it slowly fades out
+  // to black, and then back in to full light.
+  // Multiple lanterns can be in wink mode.
+  // winkSelect();
+
+  // Adjust lanterns' wink values
+  for (int i=0; i<NUM_LANTERNS; i++) {
+    if (winks[i][1]==1) {
+      // Winking out
+      winks[i][0] = qadd8(winks[i][0], winkFadeAmount);
+      if (winks[i][0]==0xFF) {
+        winks[i][1]=2;
+        Serial.print("Winking out ended on ");
+        Serial.println(i);
+      }
+    } else if (winks[i][1]==3) {
+      // Winking back in
+      winks[i][0] = qsub8(winks[i][0], winkFadeAmount);
+      if (winks[i][0]==0x00) {
+        winks[i][1]=0;
+        Serial.print("Winking back in ended on ");
+        Serial.println(i);
+      }
+    }
+  }
 
 }
 
-// void fadeall() { for(int i = 0; i < NUM_LEDS; i++) { leds[i].nscale8(250); } }
+void inciteFlame() {
+  // Serial.println("inciteFlame()");
+  for (int i=0; i<NUM_LANTERNS; i++) {
+    // winkColor[i] = CRGB::Green;
+    winkColor[i] = ColorFromPalette(firePalette, random8(fireColorLow,fireColorHigh));
+  }
+}
+
+void drawWinkingLanterns() {
+  for (int i=0; i<NUM_LANTERNS; i++) {
+    leds(lanternPos(i, 0), lanternPos(i,NUM_LEDS_PER_LANTERN-1)).fill_solid(CRGB::Black);
+
+    // Direct/linear
+    // leds(lanternPos(i, 0), lanternPos(i,NUM_LEDS_PER_LANTERN)).fadeToBlackBy(winks[i][0]);
+
+    // Ease In/Out
+    // leds(lanternPos(i, 0), lanternPos(i,NUM_LEDS_PER_LANTERN)).fadeToBlackBy(  ease8InOutCubic( winks[i][0] )  );
+
+    // Use Skip value
+    // for (int j=0; j<NUM_LEDS_PER_LANTERN; j+=WINK_SKIP) {
+    for (int j=0; j<NUM_LEDS_PER_LANTERN; j+=ledSkipStep) {
+      // leds[lanternPos(i,j)].fill_solid(lColor);
+      // leds[lanternPos(i,j)] = lColor;
+      leds[lanternPos(i,j)] = winkColor[i];
+      leds[lanternPos(i,j)].fadeToBlackBy( ease8InOutCubic( winks[i][0] ) );
+    }
+  }
+}
 
 void dotmove() {
+  // Serial.print("+");
   static uint16_t pos;
   static int8_t dir;
 
-  // if (pos > (NUM_LEDS_PER_LANTERN)-2) {
-  // if (pos > (NUM_COLUMNS)-2) {
-  //   dir = -1; // Down
-  // } else if (pos == 0) {
-  //   dir = 1; // Up
-  // }
   dir = 1;
 
   pos += dir;
   pos %= NUM_COLUMNS;
 
   for (int i=0; i<NUM_LANTERNS; i++) {
-    // Serial.print("LANTERN:");
-    // Serial.println(i);
-    // Serial.print("POS:");
-    // Serial.println(pos);
-    //
-    // Serial.print((NUM_LEDS_PER_LANTERN*i));
-    // Serial.print(":");
-    // Serial.print( ( (NUM_LEDS_PER_LANTERN) * (i+1) ) - 1 );
-    // Serial.println(":B");
-    //
-    // Serial.print(((NUM_LEDS_PER_LANTERN*i)+pos));
-    // Serial.print(":");
-    // Serial.print(((NUM_LEDS_PER_LANTERN)*i)+1+pos);
-    // Serial.println(":R");
-
     // leds(((NUM_LEDS_PER_LANTERN*i)+pos), ((NUM_LEDS_PER_LANTERN)*i)+1+pos).fill_solid(lColor);
-
 
     // leds(lanternPos(i,pos), lanternPos(i,pos));
 
@@ -309,42 +568,133 @@ void dotmove() {
   }
   // leds.fill_solid(CRGB::Black);
   // leds[pos] = CRGB(255, 0, 0);
-
-  // FastLED.show();
 }
 
 uint16_t lanternPos(uint8_t lantern_num, uint16_t pos_on_lantern) {
-  return ((NUM_LEDS_PER_LANTERN*lantern_num)+pos_on_lantern);
+  return START_LEDS + ((NUM_LEDS_PER_LANTERN*lantern_num)+pos_on_lantern);
 }
 
 void fadeLEDs() {
+  // Serial.println("fadeLEDs()");
   for (int i=0; i<NUM_LANTERNS; i++) {
-    leds((NUM_LEDS_PER_LANTERN*i),  ( (NUM_LEDS_PER_LANTERN) * (i+1) ) - 1 ).fadeToBlackBy(fadeAmount);
+    leds((START_LEDS+(NUM_LEDS_PER_LANTERN*i)),  (START_LEDS+( (NUM_LEDS_PER_LANTERN) * (i+1) )) - 1 ).fadeToBlackBy(fadeAmount);
   }
 }
 
-void loop()
-{
-  ArduinoOTA.handle();
-  #ifdef HTTP_UPDATER
-  httpServer.handleClient();
-  #endif
-  Blynk.run(); // Initiates Blynk
-  timer.run(); // Initiates SimpleTimer
-  slideTimer.run();
-
-  // EVERY_N_MILLISECONDS(40) {
-  //   FastLED.show();
-  // }
+void reconnectWifi() {
+  WiFi.begin();
 }
 
-BLYNK_WRITE(V1) // zeRGBa assigned to V1
-{
-    // get a RED channel value
-    lColor.r = param[0].asInt();
-    lColor.g = param[1].asInt();
-    lColor.b = param[2].asInt();
-    Serial.println("Color Updated");
+void onDisconnected(const WiFiEventStationModeDisconnected& event) {
+  disconnected = 1;
+  reconnectWifi();
+}
+
+void loop() {
+  ArduinoOTA.handle();
+
+#ifdef HTTP_UPDATER
+  httpServer.handleClient();
+#endif
+
+  if (disconnected == 1 && WiFi.status() == WL_CONNECTED) {
+    Serial.print(String("[WIFI] IP: "));
+    Serial.println(WiFi.localIP());
+    disconnected = 0;
+  }
+
+  if (Blynk.connected()) {
+    bl_connecting = 0;
+    // leds[1] = CRGB(0, 128, 0); // Green
+    // leds[1].fadeToBlackBy(200);
+    // FastLED.show();
+    Blynk.run(); // Initiates Blynk
+  } else {
+    if (!bl_connecting) {
+      // leds[1] = CRGB::Orange;
+      // leds[1].fadeToBlackBy(200);
+      slideTimer.setTimeout(5000UL, bl_reconnect);
+    } else {
+      // leds[1] = CRGB::Red;
+      // leds[1].fadeToBlackBy(200);
+    }
+  }
+  // timer.run(); // Initiates SimpleTimer
+  slideTimer.run();
+
+  int status = WiFi.status();
+  switch (status) {
+    case WL_CONNECTED:
+    leds[0] = CRGB::Green;
+    break;
+    case WL_IDLE_STATUS:
+    leds[0] = CRGB::YellowGreen;
+    break;
+    case WL_CONNECTION_LOST:
+    leds[0] = CRGB::Red;
+    break;
+    case WL_DISCONNECTED:
+    leds[0] = CRGB::Blue;
+    break;
+    default:
+    leds[0] = CRGB::Purple;
+  }
+
+  if (newDisplayMode!=displayMode) {
+    modeSelect(newDisplayMode, displayMode);
+    // displayMode = newDisplayMode;
+  }
+}
+
+void modeSelect(uint8_t newMode, uint8_t &oldMode) {
+  // switch (oldMode) {
+  //   case 0:
+  //     disableFlame();
+  //     break;
+  //   case 1:
+  //     disableDotmove();
+  //     break;
+  //   case 2:
+  //     disableBlankDisplay();
+  //     break;
+  // }
+
+  disableFlame();
+  disableDotmove();
+  disableBlankDisplay();
+
+  switch (newMode) {
+    case 0:
+      enableFlame();
+      break;
+    case 1:
+      enableDotmove();
+      break;
+    case 2:
+      enableBlankDisplay();
+      break;
+  }
+  oldMode = newMode;
+}
+
+void bl_reconnect() {
+  bl_connecting = 1;
+  // leds[1] = CRGB::Blue;
+  // leds[1].fadeToBlackBy(200);
+  if (Blynk.connect(5)) {
+    // leds[1] = CRGB::Purple;
+    // leds[1].fadeToBlackBy(200);
+  }
+  // return Blynk.connected();
+}
+
+BLYNK_WRITE(V1) {
+  // zeRGBa assigned to V1
+  // get a RED channel value
+  lColor.r = param[0].asInt();
+  lColor.g = param[1].asInt();
+  lColor.b = param[2].asInt();
+  Serial.println("Color Updated");
 }
 BLYNK_READ(V1) {
   Blynk.virtualWrite(V1, lColor);
@@ -352,8 +702,9 @@ BLYNK_READ(V1) {
 
 BLYNK_WRITE(V2) {
   dotSpeed = param.asInt();
-  slideTimer.deleteTimer(dotSpeedTimer);
-  dotSpeedTimer = slideTimer.setInterval(dotSpeed, dotmove);
+  // slideTimer.deleteTimer(dotSpeedTimer);
+  // dotSpeedTimer = slideTimer.setInterval(dotSpeed, dotmove);
+  slideTimer.changeInterval(dotSpeedTimer, dotSpeed);
   Serial.println("Dot Speed Updated");
 }
 BLYNK_READ(V2) {
@@ -362,8 +713,11 @@ BLYNK_READ(V2) {
 
 BLYNK_WRITE(V3) {
   fadeSpeed = param.asInt();
-  slideTimer.deleteTimer(fadeSpeedTimer);
-  fadeSpeedTimer = slideTimer.setInterval(fadeSpeed, fadeLEDs);
+  // slideTimer.deleteTimer(fadeSpeedTimer);
+  if (fadeSpeed>0) {
+    // fadeSpeedTimer = slideTimer.setInterval(fadeSpeed, fadeLEDs);
+    slideTimer.changeInterval(fadeSpeedTimer, fadeSpeed);
+  }
   Serial.println("Fade Speed Updated");
 }
 BLYNK_READ(V3) {
@@ -388,10 +742,105 @@ BLYNK_READ(V5) {
   Blynk.virtualWrite(V5, brightness);
 }
 
+BLYNK_WRITE(V6) {
+  // Set LED Skip Step
+  ledSkipStep = param.asInt();
+  Serial.println("LED Skip Step Updated");
+}
+BLYNK_READ(V6) {
+  Blynk.virtualWrite(V6, ledSkipStep);
+}
+
+BLYNK_WRITE(V7) {
+  // Set Fire Color Low
+  fireColorLow = min(param.asInt(), fireColorHigh);
+  Serial.println("Fire Color Low Updated");
+}
+BLYNK_READ(V7) {
+  Blynk.virtualWrite(V7, fireColorLow);
+}
+
+BLYNK_WRITE(V8) {
+  // Set Fire Color High
+  fireColorHigh = max(param.asInt(), fireColorLow);
+  Serial.println("Fire Color High Updated");
+}
+BLYNK_READ(V8) {
+  Blynk.virtualWrite(V8, fireColorHigh);
+}
+
+BLYNK_WRITE(V9) {
+  // Set Wink Speed (amount to fade with each tick);
+  winkFadeAmount = param.asInt();
+  Serial.println("Wink Speed Updated");
+}
+BLYNK_READ(V9) {
+  Blynk.virtualWrite(V9, fireColorHigh);
+}
+
+BLYNK_WRITE(V10) {
+  // Set Wink Out Chance
+  winkOutChance = param.asInt();
+  Serial.println("Wink Out Chance Updated");
+}
+BLYNK_READ(V10) {
+  Blynk.virtualWrite(V10, winkOutChance);
+}
+
+BLYNK_WRITE(V11) {
+  // Set Wink In Chance
+  winkInChance = param.asInt();
+  Serial.println("Wink In Chance Updated");
+}
+BLYNK_READ(V11) {
+  Blynk.virtualWrite(V11, winkInChance);
+}
+
+BLYNK_WRITE(V12) {
+  // Set Flame Flicker Delay
+  inciteFlameDelay = param.asInt();
+  // slideTimer.deleteTimer(winkFlameTimer);
+  // winkFlameTimer = slideTimer.setInterval(inciteFlameDelay, inciteFlame);
+  slideTimer.changeInterval(winkFlameTimer, inciteFlameDelay);
+  Serial.println("Flame Flicker Delay Updated");
+}
+BLYNK_READ(V12) {
+  Blynk.virtualWrite(V12, inciteFlameDelay);
+}
+
+BLYNK_WRITE(V13) {
+  // Update Display Mode
+  newDisplayMode = param.asInt();
+  Serial.println("Display Mode Updated");
+}
+BLYNK_READ(V13) {
+  Blynk.virtualWrite(V13, displayMode);
+}
+
 BLYNK_CONNECTED() {
-    Blynk.syncAll();
+  Blynk.syncAll();
+  rtc.begin();
 }
 
 void updateLEDs() {
   FastLED.show();
+}
+
+void watchdogPrint() {
+  // Serial.println("+");
+  Serial.print("[ ");
+  for (int i=0; i<NUM_LANTERNS; i++) {
+    Serial.print(winks[i][1]);
+    Serial.print(":");
+    Serial.print(winks[i][0]);
+    Serial.print(" ");
+  }
+  Serial.print("] RSSI: ");
+  int rssi = WiFi.RSSI();  // eg. -63
+  Serial.println(rssi);
+
+}
+
+void winkEntropy() {
+  random16_add_entropy(now());
 }
