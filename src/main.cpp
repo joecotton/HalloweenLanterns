@@ -56,8 +56,8 @@ const char hostOTA[] = "HalloweenLantern";
 const char passOTA[] = "striper";
 
 // const char blynkServer[] = "home.lightningflash.net";
-const char blynkServer[] = "blynk.dyn-cms.org";
-// const char blynkServer[] = "192.168.1.10";
+// const char blynkServer[] = "blynk.dyn-cms.org";
+const char blynkServer[] = "192.168.1.10";
 // #define BLYNK_CUSTOM_FINGERPRINT "14:D6:6C:28:9B:A2:A1:6D:08:70:75:01:8A:02:D1:1A:C2:14:F3:CB" // ensure no invisible characters in the fingerprint
 // #define BLYNK_CUSTOM_FINGERPRINT "BC:70:D1:AA:B7:5B:F3:8C:62:EB:A6:90:A0:4A:31:18:19:7C:6A:B8:44:F1:7C:9C:ED:C3:E2:DB:64:B2:49:F9" // SHA256
 #define BLYNK_CUSTOM_FINGERPRINT "FA:0C:A4:C7:D0:EC:9B:CD:FF:15:42:DB:FD:28:67:15:50:95:7A:E5" // SHA1
@@ -158,6 +158,11 @@ void tick() {
   //toggle state
   int state = digitalRead(BUILTIN_LED);  // get the current state of GPIO1 pin
   digitalWrite(BUILTIN_LED, !state);     // set pin to the opposite state
+
+  leds[0] = CRGB::Blue;
+  leds[0].fadeToBlackBy(255*state);
+  FastLED.show();
+
 }
 
 void saveConfigCallback () {  //callback notifying us of the need to save config
@@ -170,6 +175,13 @@ void setup() {
 
   Serial.begin(115200);
   Serial.println();
+
+  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, ((NUM_LEDS_PER_LANTERN*NUM_LANTERNS)+START_LEDS)).setCorrection( TypicalLEDStrip );
+  FastLED.setBrightness(  BRIGHTNESS );
+
+  leds[0] = CRGB::Red;
+  leds[1] = CRGB::Red;
+  FastLED.show();
 
   //set led pin as output
   pinMode(BUILTIN_LED, OUTPUT);
@@ -315,13 +327,15 @@ void setup() {
   Serial.println("OTA: Ready");
   //END OTA Setup
 
+  leds[1] = CRGB::Blue;
+  FastLED.show();
 
   // Blynk.config(blynk_token, blynkServer, 8441, BLYNK_CUSTOM_FINGERPRINT);
   Blynk.config(blynk_token, blynkServer);
   Blynk.connect();
 
-  FastLED.addLeds<LED_TYPE, DATA_PIN, COLOR_ORDER>(leds, ((NUM_LEDS_PER_LANTERN*NUM_LANTERNS)+START_LEDS)).setCorrection( TypicalLEDStrip );
-  FastLED.setBrightness(  BRIGHTNESS );
+  leds[1] = CRGB::Green;
+  FastLED.show();
 
   // Initialize flame colors
   inciteFlame();
@@ -591,18 +605,15 @@ void loop() {
 
   if (Blynk.connected()) {
     bl_connecting = 0;
-    // leds[1] = CRGB(0, 128, 0); // Green
-    // leds[1].fadeToBlackBy(200);
-    // FastLED.show();
+    leds[1] = CRGB::Green;
+    leds[1].fadeToBlackBy(200);
     Blynk.run(); // Initiates Blynk
   } else {
     if (!bl_connecting) {
-      // leds[1] = CRGB::Orange;
-      // leds[1].fadeToBlackBy(200);
       slideTimer.setTimeout(5000UL, bl_reconnect);
     } else {
-      // leds[1] = CRGB::Red;
-      // leds[1].fadeToBlackBy(200);
+      leds[1] = CRGB::Red;
+      leds[1].fadeToBlackBy(200);
     }
   }
   // timer.run(); // Initiates SimpleTimer
