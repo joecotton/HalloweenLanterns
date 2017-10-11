@@ -623,18 +623,23 @@ void loop() {
   switch (status) {
     case WL_CONNECTED:
     leds[0] = CRGB::Green;
+    leds[0].fadeToBlackBy(200);
     break;
     case WL_IDLE_STATUS:
     leds[0] = CRGB::YellowGreen;
+    leds[0].fadeToBlackBy(200);
     break;
     case WL_CONNECTION_LOST:
     leds[0] = CRGB::Red;
+    leds[0].fadeToBlackBy(200);
     break;
     case WL_DISCONNECTED:
     leds[0] = CRGB::Blue;
+    leds[0].fadeToBlackBy(200);
     break;
     default:
     leds[0] = CRGB::Purple;
+    leds[0].fadeToBlackBy(200);
   }
 
   if (newDisplayMode!=displayMode) {
