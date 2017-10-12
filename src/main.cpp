@@ -45,8 +45,8 @@ char blynk_token[34] = "BLYNK_TOKEN";
 
 bool shouldSaveConfig = false; //flag for saving data
 
-#include <BlynkSimpleEsp8266_SSL.h>
-// #include <BlynkSimpleEsp8266.h>
+// #include <BlynkSimpleEsp8266_SSL.h>
+#include <BlynkSimpleEsp8266.h>
 #include <WidgetRTC.h>
 
 BlynkTimer slideTimer;
@@ -332,14 +332,14 @@ void setup() {
   Serial.println("OTA: Ready");
   //END OTA Setup
 
-  leds[1] = CRGB::Blue;
+  // leds[1] = CRGB::Blue;
   FastLED.show();
 
-  Blynk.config(blynk_token, blynkServer, 8441, BLYNK_CUSTOM_FINGERPRINT);
-  // Blynk.config(blynk_token, blynkServer);
+  // Blynk.config(blynk_token, blynkServer, 8441, BLYNK_CUSTOM_FINGERPRINT);
+  Blynk.config(blynk_token, blynkServer);
   Blynk.connect();
 
-  leds[1] = CRGB::Green;
+  leds[1] = CRGB::Black;
   FastLED.show();
 
   // Initialize flame colors
@@ -608,19 +608,31 @@ void loop() {
     disconnected = 0;
   }
 
+  Blynk.run(); // Initiates Blynk
+  // if (Blynk.connected()) {
+  //   bl_connecting = 0;
+  //   leds[1] = CRGB::Green;
+  //   leds[1].fadeToBlackBy(200);
+  //   // Blynk.run(); // Initiates Blynk
+  // } else {
+  //   leds[1] = CRGB::Red;
+  //   leds[1].fadeToBlackBy(200);
+  //   if (!bl_connecting) {
+  //     // slideTimer.setTimeout(5000UL, bl_reconnect);
+  //     bl_reconnect();
+  //   } else {
+  //     // Allow reconnect, do nothing.
+  //   }
+  // }
   if (Blynk.connected()) {
-    bl_connecting = 0;
     leds[1] = CRGB::Green;
     leds[1].fadeToBlackBy(200);
-    Blynk.run(); // Initiates Blynk
   } else {
-    if (!bl_connecting) {
-      slideTimer.setTimeout(5000UL, bl_reconnect);
-    } else {
-      leds[1] = CRGB::Red;
-      leds[1].fadeToBlackBy(200);
-    }
+    leds[1] = CRGB::Red;
+    leds[1].fadeToBlackBy(200);
   }
+  // Blynk.run();
+
   // timer.run(); // Initiates SimpleTimer
   slideTimer.run();
 
@@ -686,11 +698,18 @@ void modeSelect(uint8_t newMode, uint8_t &oldMode) {
 
 void bl_reconnect() {
   bl_connecting = 1;
-  // leds[1] = CRGB::Blue;
-  // leds[1].fadeToBlackBy(200);
-  if (Blynk.connect(5)) {
-    // leds[1] = CRGB::Purple;
-    // leds[1].fadeToBlackBy(200);
+  leds[1] = CRGB::Blue;
+  leds[1].fadeToBlackBy(200);
+  FastLED.show();
+  if (Blynk.connect(30)) {
+    leds[1] = CRGB::Green;
+    leds[1].fadeToBlackBy(200);
+    FastLED.show();
+  } else {
+    slideTimer.setTimeout(5000UL, bl_reconnect);
+    leds[1] = CRGB::Red;
+    leds[1].fadeToBlackBy(200);
+    FastLED.show();
   }
   // return Blynk.connected();
 }
