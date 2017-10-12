@@ -45,8 +45,8 @@ char blynk_token[34] = "BLYNK_TOKEN";
 
 bool shouldSaveConfig = false; //flag for saving data
 
-// #include <BlynkSimpleEsp8266_SSL.h>
-#include <BlynkSimpleEsp8266.h>
+#include <BlynkSimpleEsp8266_SSL.h>
+// #include <BlynkSimpleEsp8266.h>
 #include <WidgetRTC.h>
 
 BlynkTimer slideTimer;
@@ -55,12 +55,17 @@ WidgetRTC rtc;
 const char hostOTA[] = "HalloweenLantern";
 const char passOTA[] = "striper";
 
-// const char blynkServer[] = "home.lightningflash.net";
+const char blynkServer[] = "home.lightningflash.net";
 // const char blynkServer[] = "blynk.dyn-cms.org";
-const char blynkServer[] = "192.168.1.10";
+// const char blynkServer[] = "192.168.1.10";
 // #define BLYNK_CUSTOM_FINGERPRINT "14:D6:6C:28:9B:A2:A1:6D:08:70:75:01:8A:02:D1:1A:C2:14:F3:CB" // ensure no invisible characters in the fingerprint
 // #define BLYNK_CUSTOM_FINGERPRINT "BC:70:D1:AA:B7:5B:F3:8C:62:EB:A6:90:A0:4A:31:18:19:7C:6A:B8:44:F1:7C:9C:ED:C3:E2:DB:64:B2:49:F9" // SHA256
-#define BLYNK_CUSTOM_FINGERPRINT "FA:0C:A4:C7:D0:EC:9B:CD:FF:15:42:DB:FD:28:67:15:50:95:7A:E5" // SHA1
+// #define BLYNK_CUSTOM_FINGERPRINT "FA:0C:A4:C7:D0:EC:9B:CD:FF:15:42:DB:FD:28:67:15:50:95:7A:E5" // SHA1
+
+#define BLYNK_CUSTOM_FINGERPRINT "14:D6:6C:28:9B:A2:A1:6D:08:70:75:01:8A:02:D1:1A:C2:14:F3:CB" // SHA1 of PEM format home.lightningflash.net
+// Fingerprint command: openssl x509 -in certs/home_lightningflash_net.crt.pem -text -noout -fingerprint
+// CRT to PEM format conversion: openssl x509 -in home_lightningflash_net.crt -out home_lightningflash_net.crt.pe
+
 // const char blynkServer[] = "blynk.dyn-cms.org";
 
 #ifdef HTTP_UPDATER
@@ -330,8 +335,8 @@ void setup() {
   leds[1] = CRGB::Blue;
   FastLED.show();
 
-  // Blynk.config(blynk_token, blynkServer, 8441, BLYNK_CUSTOM_FINGERPRINT);
-  Blynk.config(blynk_token, blynkServer);
+  Blynk.config(blynk_token, blynkServer, 8441, BLYNK_CUSTOM_FINGERPRINT);
+  // Blynk.config(blynk_token, blynkServer);
   Blynk.connect();
 
   leds[1] = CRGB::Green;
