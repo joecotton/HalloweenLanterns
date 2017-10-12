@@ -160,7 +160,7 @@ void tick() {
   digitalWrite(BUILTIN_LED, !state);     // set pin to the opposite state
 
   leds[0] = CRGB::Blue;
-  leds[0].fadeToBlackBy(255*state);
+  leds[0].fadeToBlackBy(255*(!state));
   FastLED.show();
 
 }
