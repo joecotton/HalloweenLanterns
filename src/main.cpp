@@ -613,6 +613,7 @@ uint16_t lanternPos(uint8_t lantern_num, uint16_t pos_on_lantern) {
 
 void sirenDraw() {
   const uint8_t circleInterval = 0xFF / NUM_COLUMNS; // How many steps/pct of whole is each column
+  // const uint8_t circleInterval = 0xFF / (NUM_COLUMNS/2); // How many steps/pct of whole is each column
   static uint8_t pos; // Offset for start of sine wave
 
   FastLED.clear(); // Start from black;
