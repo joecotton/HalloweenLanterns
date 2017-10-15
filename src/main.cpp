@@ -109,6 +109,7 @@ uint8_t inciteFlameDelay = 80;
 
 uint8_t sirenDelay = 10;
 uint8_t sirenShiftAmount = 5;
+uint8_t sirenFold = 0;
 
 uint8_t disconnected = 1;
 
@@ -619,9 +620,14 @@ void sirenDraw() {
   for (int i=0; i<NUM_LANTERNS; i++) {
     for (int j=0; j<NUM_COLUMNS; j++) {
       int fadePct;
+      fadePct = pos + (j*circleInterval);
+      for (int f=0; f<sirenFold; f++) {
+        // fadePct = sin8(fadePct);
+        fadePct = cubicwave8(fadePct);
+      }
       // fadePct = sin8(pos + (j*circleInterval));
-      fadePct = cubicwave8(pos + (j*circleInterval));
-      fadePct = qadd8(fadePct, 25);
+      // fadePct = cubicwave8(pos + (j*circleInterval));
+      // fadePct = qadd8(fadePct, 25);  // Dim the whole light segment, bottoming out at zero.
       CRGB colColor = lColor;
       colColor.fadeToBlackBy(fadePct);
       // colColor %= fadePct;
@@ -935,6 +941,15 @@ BLYNK_WRITE(V15) {
 }
 BLYNK_READ(V15) {
   Blynk.virtualWrite(V15, sirenShiftAmount);
+}
+
+BLYNK_WRITE(V16) {
+  // Set Siren Easeing folds
+  sirenFold = param.asInt();
+  Serial.println("Siren Easing Folds Updated");
+}
+BLYNK_READ(V16) {
+  Blynk.virtualWrite(V16, sirenFold);
 }
 
 BLYNK_CONNECTED() {
